@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/gomodule/redigo/redis"
-	"github.com/s3dteam/go-toolkit/log"
+	"github.com/webbergao1/go-toolkit/log"
 )
 
 type RedisOptions struct {
@@ -71,6 +71,17 @@ func (service *RedisCacheService) Stop() {
 }
 
 // -----------------string operation------------------
+func (service *RedisCacheService) SetNX(key string, value []byte, ttl int64) (interface{}, error) {
+	conn := service.pool.Get()
+	defer conn.Close()
+	result, err := conn.Do("set", key, value, "NX", "EX", ttl)
+	if err != nil {
+		service.log.Error("redis setnx", "key", key, "error", err.Error())
+		return result, err
+	}
+	return result, nil
+}
+
 // when set exist key, old key ttl must reset it
 func (service *RedisCacheService) Set(key string, value []byte, ttl int64) error {
 	conn := service.pool.Get()
@@ -99,7 +110,7 @@ func (service *RedisCacheService) Get(key string) ([]byte, error) {
 		service.log.Error("redis String get", "key", key, "error", err.Error())
 		return []byte{}, err
 	} else if nil == reply {
-		service.log.Debug("redis String get, no this key", "key", key)
+		//service.log.Debug("redis String get, no this key", "key", key)
 		return []byte{}, err
 	} else {
 		return reply.([]byte), err
@@ -367,6 +378,23 @@ func (service *RedisCacheService) ZRem(key string, args ...[]byte) (int64, error
 	reply, err := conn.Do("zrem", vs...)
 	if nil != err {
 		service.log.Error("redis zset zrem", "key", key, "error", err.Error())
+		return 0, err
+	} else {
+		res := reply.(int64)
+		return res, err
+	}
+}
+
+func (service *RedisCacheService) ZCount(key string, min, max interface{}) (int64, error) {
+	conn := service.pool.Get()
+	defer conn.Close()
+
+	vs := []interface{}{}
+	vs = append(vs, key, min, max)
+
+	reply, err := conn.Do("zcount", vs...)
+	if nil != err {
+		service.log.Error("redis zset zcount", "key", key, "error", err.Error())
 		return 0, err
 	} else {
 		res := reply.(int64)
